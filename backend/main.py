@@ -21,7 +21,14 @@ yt = YTMusic()
 REGIONS = {
     "AR": {"name": "Argentina", "lat": -38.4161, "lng": -63.6167},
     "US": {"name": "USA", "lat": 37.0902, "lng": -95.7129},
-    "ZZ": {"name": "Global", "lat": 0.0, "lng": 0.0}
+    "ZZ": {"name": "Global", "lat": 0.0, "lng": -30.0},
+    "BR": {"name": "Brasil", "lat": -14.2350, "lng": -51.9253},
+    "MX": {"name": "México", "lat": 23.6345, "lng": -102.5528},
+    "GB": {"name": "UK", "lat": 55.3781, "lng": -3.4360},
+    "JP": {"name": "Japan", "lat": 36.2048, "lng": 138.2529},
+    "KR": {"name": "South Korea", "lat": 35.9078, "lng": 127.7669},
+    "DE": {"name": "Germany", "lat": 51.1657, "lng": 10.4515},
+    "FR": {"name": "France", "lat": 46.6034, "lng": 1.8883},
 }
 
 @app.get("/api/trending")
