@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import SongCard from './SongCard';
@@ -10,40 +10,48 @@ const createPulseIcon = (isSelected) => {
     className: '',
     html: `
       <div class="pulse-marker ${isSelected ? 'selected' : ''}">
+        <div class="pulse-marker-halo"></div>
         <div class="pulse-marker-ring"></div>
         <div class="pulse-marker-ring"></div>
         <div class="pulse-marker-core"></div>
+        <div class="pulse-marker-dot"></div>
       </div>
     `,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-    popupAnchor: [0, -14],
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
   });
 };
 
-// Map panning controller — flies to selected marker
-const MapController = ({ selectedSong, songs }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (selectedSong) {
-      const song = songs.find(s => s.id === selectedSong);
-      if (song) {
-        map.flyTo([song.lat, song.lng], 5, {
-          duration: 1.2,
-          easeLinearity: 0.25,
-        });
-      }
-    }
-  }, [selectedSong, songs, map]);
-
-  return null;
-};
-
-const MapView = ({ songs, selectedSong, onSelectSong }) => {
+const MapView = ({ songs, selectedSong, onSelectSong, mapTheme }) => {
   // Center on the Atlantic to comfortably show Americas, Europe, and Africa
   const center = [20, -20];
   const markerRefs = useRef({});
+  const isDarkTheme = mapTheme !== 'light';
+
+  const tileUrl = isDarkTheme
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
+  const regionsWithTopSongs = Array.from(
+    songs.reduce((groups, song) => {
+      const regionCode = song.regionCode || song.id;
+      if (!groups.has(regionCode)) {
+        groups.set(regionCode, {
+          regionCode,
+          region: song.region,
+          lat: song.lat,
+          lng: song.lng,
+          songs: [],
+        });
+      }
+      groups.get(regionCode).songs.push(song);
+      return groups;
+    }, new Map()).values()
+  ).map((regionEntry) => ({
+    ...regionEntry,
+    songs: [...regionEntry.songs].sort((a, b) => (a.rank || 99) - (b.rank || 99)).slice(0, 3),
+  }));
 
   // When a song is selected from the sidebar, open its popup after fly animation
   useEffect(() => {
@@ -53,10 +61,21 @@ const MapView = ({ songs, selectedSong, onSelectSong }) => {
       }, 900);
       return () => clearTimeout(timer);
     }
+
+    if (selectedSong) {
+      const selected = songs.find((item) => item.id === selectedSong);
+      const selectedRegionCode = selected?.regionCode || selected?.id;
+      if (selectedRegionCode && markerRefs.current[selectedRegionCode]) {
+        const timer = setTimeout(() => {
+          markerRefs.current[selectedRegionCode].openPopup();
+        }, 900);
+        return () => clearTimeout(timer);
+      }
+    }
   }, [selectedSong]);
 
   return (
-    <div className="map-container" id="map-container">
+    <div className={`map-container ${isDarkTheme ? 'map-dark' : 'map-light'}`} id="map-container">
       <MapContainer
         center={center}
         zoom={3}
@@ -65,26 +84,29 @@ const MapView = ({ songs, selectedSong, onSelectSong }) => {
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
+          key={mapTheme}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · CartoDB'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url={tileUrl}
         />
 
-        <MapController selectedSong={selectedSong} songs={songs} />
-
-        {songs.map((item) => (
+        {regionsWithTopSongs.map((item) => (
           <Marker
-            key={item.id}
+            key={item.regionCode}
             position={[item.lat, item.lng]}
-            icon={createPulseIcon(selectedSong === item.id)}
+            icon={createPulseIcon(item.songs.some((song) => song.id === selectedSong))}
             ref={(ref) => {
-              if (ref) markerRefs.current[item.id] = ref;
+              if (ref) markerRefs.current[item.regionCode] = ref;
             }}
             eventHandlers={{
-              click: () => onSelectSong(item.id),
+              click: () => onSelectSong(item.songs[0]?.id),
             }}
           >
             <Popup>
-              <SongCard song={item} compact />
+              <div className="top3-popup-list">
+                {item.songs.map((topSong) => (
+                  <SongCard key={topSong.id} song={topSong} compact hideThumbnail />
+                ))}
+              </div>
             </Popup>
           </Marker>
         ))}

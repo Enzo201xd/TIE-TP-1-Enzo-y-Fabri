@@ -11,6 +11,8 @@ function App() {
   const [selectedRegion, setSelectedRegion] = useState('ALL');
   const [selectedSong, setSelectedSong] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mapTheme, setMapTheme] = useState('dark');
+  const [showTopThree, setShowTopThree] = useState(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -34,12 +36,26 @@ function App() {
   }, [fetchData]);
 
   // Filter data by selected region
-  const filteredData = selectedRegion === 'ALL'
+  const regionFilteredData = selectedRegion === 'ALL'
     ? trendingData
-    : trendingData.filter(item => item.id === selectedRegion);
+    : trendingData.filter(item => (item.regionCode || item.id) === selectedRegion);
+
+  const filteredData = showTopThree
+    ? regionFilteredData
+    : regionFilteredData.filter(item => !item.rank || item.rank === 1);
+
+  useEffect(() => {
+    if (selectedSong && !filteredData.some(item => item.id === selectedSong)) {
+      setSelectedSong(null);
+    }
+  }, [filteredData, selectedSong]);
 
   // Extract unique regions for the filter pills
-  const regions = trendingData.map(item => ({ id: item.id, name: item.region }));
+  const regions = Array.from(
+    new Map(
+      trendingData.map(item => [(item.regionCode || item.id), { id: (item.regionCode || item.id), name: item.region }])
+    ).values()
+  );
 
   // Toggle song selection — clicking the same song unselects it
   const handleSelectSong = useCallback((songId) => {
@@ -54,6 +70,10 @@ function App() {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(prev => !prev)}
         regions={regions}
+        mapTheme={mapTheme}
+        onToggleMapTheme={() => setMapTheme(prev => (prev === 'dark' ? 'light' : 'dark'))}
+        showTopThree={showTopThree}
+        onToggleTopThree={() => setShowTopThree(prev => !prev)}
       />
 
       {error && (
@@ -79,6 +99,7 @@ function App() {
           songs={filteredData}
           selectedSong={selectedSong}
           onSelectSong={handleSelectSong}
+          mapTheme={mapTheme}
         />
       </div>
 

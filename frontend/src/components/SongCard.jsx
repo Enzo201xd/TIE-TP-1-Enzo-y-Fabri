@@ -5,6 +5,9 @@ const REGION_FLAGS = {
   'US': '🇺🇸',
   'ZZ': '🌍',
   'BR': '🇧🇷',
+  'CA': '🇨🇦',
+  'AU': '🇦🇺',
+  'ES': '🇪🇸',
   'MX': '🇲🇽',
   'GB': '🇬🇧',
   'JP': '🇯🇵',
@@ -13,14 +16,16 @@ const REGION_FLAGS = {
   'FR': '🇫🇷',
 };
 
-const SongCard = ({ song, selected, onClick, compact, delay }) => {
+const SongCard = ({ song, selected, onClick, compact, delay, hideThumbnail = false }) => {
   const style = delay ? { animationDelay: `${delay}ms` } : {};
+  const regionId = song.regionCode || song.id;
+  const rankLabel = song.rank ? ` #${song.rank}` : '';
 
   // Compact variant: used inside map popups (vertical layout)
   if (compact) {
     return (
-      <div className="song-card compact">
-        {song.song.thumbnail ? (
+      <div className={`song-card compact ${hideThumbnail ? 'no-thumbnail' : ''}`}>
+        {!hideThumbnail && (song.song.thumbnail ? (
           <img
             src={song.song.thumbnail}
             alt={song.song.title}
@@ -29,10 +34,10 @@ const SongCard = ({ song, selected, onClick, compact, delay }) => {
           />
         ) : (
           <div className="song-card-no-thumb">🎵</div>
-        )}
+        ))}
         <div className="song-card-info">
           <div className="song-card-region">
-            {REGION_FLAGS[song.id] || '📍'} {song.region} #1
+            {REGION_FLAGS[regionId] || '📍'} {song.region}{rankLabel}
           </div>
           <div className="song-card-title">{song.song.title}</div>
           <div className="song-card-artist">{song.song.artist}</div>
@@ -77,7 +82,7 @@ const SongCard = ({ song, selected, onClick, compact, delay }) => {
         <div className="song-card-title">{song.song.title}</div>
         <div className="song-card-artist">{song.song.artist}</div>
         <div className="song-card-region">
-          {REGION_FLAGS[song.id] || '📍'} {song.region}
+          {REGION_FLAGS[regionId] || '📍'} {song.region}{rankLabel}
         </div>
       </div>
     </div>
