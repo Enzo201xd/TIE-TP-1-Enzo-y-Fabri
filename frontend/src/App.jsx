@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { lazy, Suspense, useEffect, useState, useCallback, useMemo } from 'react';
 import Header from './components/Header';
-import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
 import LoadingScreen from './components/LoadingScreen';
+
+const MapView = lazy(() => import('./components/MapView'));
 
 function App() {
   const [trendingData, setTrendingData] = useState([]);
@@ -36,13 +37,17 @@ function App() {
   }, [fetchData]);
 
   // Filter data by selected region
-  const regionFilteredData = selectedRegion === 'ALL'
-    ? trendingData
-    : trendingData.filter(item => (item.regionCode || item.id) === selectedRegion);
+  const regionFilteredData = useMemo(() => (
+    selectedRegion === 'ALL'
+      ? trendingData
+      : trendingData.filter(item => (item.regionCode || item.id) === selectedRegion)
+  ), [selectedRegion, trendingData]);
 
-  const filteredData = showTopThree
-    ? regionFilteredData
-    : regionFilteredData.filter(item => !item.rank || item.rank === 1);
+  const filteredData = useMemo(() => (
+    showTopThree
+      ? regionFilteredData
+      : regionFilteredData.filter(item => !item.rank || item.rank === 1)
+  ), [regionFilteredData, showTopThree]);
 
   useEffect(() => {
     if (selectedSong && !filteredData.some(item => item.id === selectedSong)) {
@@ -51,11 +56,13 @@ function App() {
   }, [filteredData, selectedSong]);
 
   // Extract unique regions for the filter pills
-  const regions = Array.from(
-    new Map(
-      trendingData.map(item => [(item.regionCode || item.id), { id: (item.regionCode || item.id), name: item.region }])
-    ).values()
-  );
+  const regions = useMemo(() => (
+    Array.from(
+      new Map(
+        trendingData.map(item => [(item.regionCode || item.id), { id: (item.regionCode || item.id), name: item.region }])
+      ).values()
+    )
+  ), [trendingData]);
 
   // Toggle song selection — clicking the same song unselects it
   const handleSelectSong = useCallback((songId) => {
@@ -95,12 +102,14 @@ function App() {
           isOpen={sidebarOpen}
           selectedRegion={selectedRegion}
         />
-        <MapView
-          songs={filteredData}
-          selectedSong={selectedSong}
-          onSelectSong={handleSelectSong}
-          mapTheme={mapTheme}
-        />
+        <Suspense fallback={<LoadingScreen visible />}>
+          <MapView
+            songs={filteredData}
+            selectedSong={selectedSong}
+            onSelectSong={handleSelectSong}
+            mapTheme={mapTheme}
+          />
+        </Suspense>
       </div>
 
       <LoadingScreen visible={loading} />

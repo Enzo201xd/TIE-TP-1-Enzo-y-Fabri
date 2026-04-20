@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ytmusicapi import YTMusic
-import json
+from threading import Lock, Thread
+from time import time
 
 app = FastAPI()
 
@@ -16,6 +17,13 @@ app.add_middleware(
 
 # Start ytmusic client
 yt = YTMusic()
+
+CACHE_TTL_SECONDS = 300
+_cache_lock = Lock()
+_trending_cache = {
+    "timestamp": 0.0,
+    "data": None,
+}
 
 # Coordinates for locations (Lat, Long)
 REGIONS = {
@@ -97,19 +105,19 @@ def _extract_top_tracks(charts, region_name):
 
     return top_songs
 
-@app.get("/api/trending")
-def get_trending_songs():
+
+def _build_trending_results():
     results = []
-    
+
     for code, info in REGIONS.items():
         try:
             # ytmusic API expects zz for global, us, ar, etc.
             country_code = 'ZZ' if code == 'ZZ' else code
             charts = yt.get_charts(country=country_code)
-            
+
             # Collect up to top 3 songs per region.
             top_songs = _extract_top_tracks(charts, info["name"])
-            
+
             # Fallback if no specific tracks could be fetched.
             if not top_songs and "videos" in charts and len(charts["videos"]) > 0:
                 fallback_songs = []
@@ -129,7 +137,7 @@ def get_trending_songs():
                     "thumbnails": art.get("thumbnails", []),
                     "videoId": ""
                 }]
-            
+
             for index, top_song in enumerate(top_songs[:3]):
                 # Fallback to empty string if title/artists aren't formatted as expected
                 title = top_song.get("title", 'Unknown Title')
@@ -160,8 +168,43 @@ def get_trending_songs():
                 })
         except Exception as e:
             results.append({"error": str(e), "code": code})
-            
+
     return results
+
+
+def _refresh_trending_cache(force=False):
+    now = time()
+    with _cache_lock:
+        cached_data = _trending_cache["data"]
+        cached_timestamp = _trending_cache["timestamp"]
+        if not force and cached_data is not None and (now - cached_timestamp) < CACHE_TTL_SECONDS:
+            return cached_data
+
+    fresh_results = _build_trending_results()
+
+    with _cache_lock:
+        _trending_cache["data"] = fresh_results
+        _trending_cache["timestamp"] = time()
+
+    return fresh_results
+
+
+@app.on_event("startup")
+def warm_trending_cache():
+    # Warm in a daemon thread so startup isn't blocked by network-bound chart fetches.
+    Thread(target=_refresh_trending_cache, kwargs={"force": True}, daemon=True).start()
+
+@app.get("/api/trending")
+def get_trending_songs():
+    now = time()
+    with _cache_lock:
+        cached_data = _trending_cache["data"]
+        cached_timestamp = _trending_cache["timestamp"]
+
+    if cached_data is not None and (now - cached_timestamp) < CACHE_TTL_SECONDS:
+        return cached_data
+
+    return _refresh_trending_cache()
 
 @app.get("/")
 def root():
