@@ -19,14 +19,14 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('http://localhost:8000/api/trending');
+      const response = await fetch('/api/trending');
       if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
       // Filter out any error entries from the backend
       setTrendingData(data.filter(item => !item.error));
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError('Failed to connect to the backend. Make sure the Python server is running on port 8000.');
+      setError('Failed to fetch trending data. In local development, make sure the backend is running on port 8000.');
     } finally {
       setLoading(false);
     }
